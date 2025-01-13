@@ -1,8 +1,8 @@
 <script setup>
 import {ref, onMounted, computed} from 'vue'
-
+import {upload} from '@/api'
 //允许上传的文件类型
-const accept = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf']
+const accept = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'docx']
 
 onMounted(() => {
   //拖拽文件
@@ -29,12 +29,14 @@ const parseFiles = (entry) => {
   if (entry.isFile) {
     //处理文件
     entry.file((file) => {
-      const type = file.type?.split('/')[1]
+      console.log(file)
+      const type = file.name?.split('.')[1]
       accept.includes(type) && tableData.value.push({
         id: tableData.value.length + 1,
         name: file.name,
         size: file.size,
         type,
+        file,
         percentage: 0,//上传进度默认为0
         status: '1', //初始状态:未上传
       })
@@ -84,14 +86,30 @@ const size = computed(() => {
 
 //开始上传
 const uploadFile = () => {
-  tableData.value.forEach((item) => {
+  tableData.value.forEach(async (item) => {
+    if (item.status === '2') return
+    const formData = new FormData()
     item.status = '4' //状态改为上传中
+    formData.append('file', item?.file)
+    try {
+      const res = await upload(formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: progress => {
+          const percentage = Math.round((progress.loaded / progress.total) * 100)
+          console.log(percentage)
+          item.percentage = percentage
+        }
+      })
+      console.log(res)
+      item.status = '2'
+    } catch (e) {
+      console.error(e)
+      item.status = '3'
+    }
+
   })
-  setTimeout(() => {
-    tableData.value.forEach((item) => {
-      item.percentage = 50 //状态改为上传中
-    })
-  }, 1000)
 }
 </script>
 
