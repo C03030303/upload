@@ -1,6 +1,8 @@
 <script setup>
 import {ref, onMounted, computed} from 'vue'
 import {upload} from '@/api'
+import {creatChunks, uploadChunks} from '@/utils/chunkUpload.js'
+
 //允许上传的文件类型
 const accept = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'docx']
 
@@ -29,7 +31,6 @@ const parseFiles = (entry) => {
   if (entry.isFile) {
     //处理文件
     entry.file((file) => {
-      console.log(file)
       const type = file.name?.split('.')[1]
       accept.includes(type) && tableData.value.push({
         id: tableData.value.length + 1,
@@ -87,6 +88,36 @@ const size = computed(() => {
 //开始上传
 const uploadFile = () => {
   tableData.value.forEach(async (item) => {
+    //上传状态为成功的不再上传
+    if (item.status === '2') return
+    const maxSize = 1024 * 1024 * 5 //单个文件最大为5M
+    if (item?.size > maxSize) {
+      //切片上传
+      const chunks = creatChunks(item?.file)
+      console.log('chunks', chunks)
+      await uploadChunks(chunks, item?.name)
+    } else {
+      //直接上传
+      const formData = new FormData()
+      item.status = '4' //状态改为上传中
+      formData.append('file', item?.file)
+      try {
+        await upload(formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: progress => {
+            const percentage = Math.round((progress.loaded / progress.total) * 100)
+            console.log(percentage)
+            item.percentage = percentage
+          }
+        })
+        item.status = '2'
+      } catch (e) {
+        console.error(e)
+        item.status = '3'
+      }
+    }
     if (item.status === '2') return
     const formData = new FormData()
     item.status = '4' //状态改为上传中
@@ -108,7 +139,6 @@ const uploadFile = () => {
       console.error(e)
       item.status = '3'
     }
-
   })
 }
 </script>
@@ -122,7 +152,6 @@ const uploadFile = () => {
       <span>将目录或多个文件拖拽到此区域进行上传</span>
     </div>
     <span class="mt16">支持的文件类型: .jpg、.jepg、.bmp、.webp、.gif、.png、.pdf</span>
-    <span class="mt16">每个文件允许的最大尺寸: 1M</span>
   </div>
 
   <div class="mt16">
