@@ -88,7 +88,6 @@ const size = computed(() => {
 //开始上传
 const uploadFile = () => {
   tableData.value.forEach(async (item) => {
-    console.log(item)
     //上传状态为成功的不再上传
     if (item.status === '2') return
     const maxSize = 1024 * 1024 * 5 //单个文件最大为5M
@@ -118,6 +117,27 @@ const uploadFile = () => {
         console.error(e)
         item.status = '3'
       }
+    }
+    if (item.status === '2') return
+    const formData = new FormData()
+    item.status = '4' //状态改为上传中
+    formData.append('file', item?.file)
+    try {
+      const res = await upload(formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: progress => {
+          const percentage = Math.round((progress.loaded / progress.total) * 100)
+          console.log(percentage)
+          item.percentage = percentage
+        }
+      })
+      console.log(res)
+      item.status = '2'
+    } catch (e) {
+      console.error(e)
+      item.status = '3'
     }
   })
 }
